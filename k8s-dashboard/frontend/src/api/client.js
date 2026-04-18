@@ -59,6 +59,15 @@ export const api = {
   getIncidentTimer: (id) => apiClient.get(`/incidents/${id}/timer`).then(r => r.data),
   cancelIncident: (id) => apiClient.post(`/incidents/${id}/cancel`).then(r => r.data),
   resolveIncident: (id) => apiClient.post(`/incidents/${id}/resolve`).then(r => r.data),
+  forceExecuteIncident: (id) => apiClient.post(`/incidents/${id}/execute-now`).then(r => r.data),
+
+  // Incident Response (IR)
+  getBlockedIps: () => apiClient.get('/ir/blocked-ips').then(r => r.data),
+  getAuditTrail: (days = 7) => apiClient.get('/ir/audit-trail', { params: { days } }).then(r => r.data),
+  unblockIp: (ip, reason) => apiClient.post('/ir/unblock-ip', { ip, reason }).then(r => r.data),
+  getPendingIncidents: () => apiClient.get('/ir/pending').then(r => r.data),
+  triggerIR: (id) => apiClient.post(`/ir/trigger/${id}`).then(r => r.data),
+  getDiagnostic: () => apiClient.get('/ir/diagnostic').then(r => r.data),
 
   // Namespace / Pods
   getNamespaces: () => apiClient.get('/incidents/namespaces/list').then(r => r.data),
@@ -68,4 +77,11 @@ export const api = {
   // Dashboard
   getDashboardSummary: (namespace) =>
     apiClient.get('/dashboard/summary', { params: namespace ? { namespace } : {} }).then(r => r.data),
+
+  // Monitoring & Performance
+  getSystemMetrics: () => apiClient.get('/monitoring/system').then(r => r.data),
+  getClusterHealth: () => apiClient.get('/monitoring/cluster/health').then(r => r.data),
+  getClusterReliability: () => apiClient.get('/monitoring/cluster/reliability').then(r => r.data),
+  getPodMetrics: () => apiClient.get('/monitoring/pods/metrics').then(r => r.data),
+  getMetricsHistory: (hours = 24) => apiClient.get('/monitoring/history', { params: { hours } }).then(r => r.data),
 }

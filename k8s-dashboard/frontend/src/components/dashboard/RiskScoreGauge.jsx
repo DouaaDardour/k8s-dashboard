@@ -1,62 +1,83 @@
 import { useRiskScore } from '../../hooks/useQueries.js'
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import clsx from 'clsx'
 
 const LEVEL_CONFIG = {
-  LOW:      { color: '#22c55e', bg: 'bg-green-900/20',  border: 'border-green-700/40',  label: 'LOW',      ring: '#22c55e' },
-  MEDIUM:   { color: '#eab308', bg: 'bg-yellow-900/20', border: 'border-yellow-700/40', label: 'MEDIUM',   ring: '#eab308' },
-  HIGH:     { color: '#f97316', bg: 'bg-orange-900/20', border: 'border-orange-700/40', label: 'HIGH',     ring: '#f97316' },
-  CRITICAL: { color: '#ef4444', bg: 'bg-red-900/20',    border: 'border-red-700/40',    label: 'CRITICAL', ring: '#ef4444' },
+  LOW:      { color: '#16a34a', bg: 'bg-emerald-50',  border: 'border-emerald-200',  label: 'LOW' },
+  MEDIUM:   { color: '#d97706', bg: 'bg-amber-50',    border: 'border-amber-200',    label: 'MEDIUM' },
+  HIGH:     { color: '#ea580c', bg: 'bg-orange-50',   border: 'border-orange-200',   label: 'HIGH' },
+  CRITICAL: { color: '#dc2626', bg: 'bg-red-50',      border: 'border-red-200',      label: 'CRITICAL' },
 }
 
-function GaugeChart({ score, level }) {
-  const cfg = LEVEL_CONFIG[level] || LEVEL_CONFIG.LOW
-  const filled = Math.max(0, Math.min(100, score))
-  const empty  = 100 - filled
+function GaugeArc({ score, color, level }) {
+  const pct = Math.max(0, Math.min(100, score))
+  const radius = 70
+  const stroke = 12
+  const circumference = Math.PI * radius // half circle
+  const offset = circumference * (1 - pct / 100)
 
   return (
-    <div className="relative w-40 h-20 mx-auto">
-      <ResponsiveContainer width="100%" height={160}>
-        <PieChart>
-          <Pie
-            data={[{ value: filled }, { value: empty }]}
-            cx="50%"
-            cy="100%"
-            startAngle={180}
-            endAngle={0}
-            innerRadius={52}
-            outerRadius={68}
-            paddingAngle={0}
-            dataKey="value"
-            strokeWidth={0}
-          >
-            <Cell fill={cfg.color} />
-            <Cell fill="#1e2535" />
-          </Pie>
-        </PieChart>
-      </ResponsiveContainer>
-
-      {/* Valeur centrale */}
-      <div className="absolute inset-0 flex flex-col items-center justify-end pb-1 pointer-events-none">
-        <span className="text-3xl font-semibold font-mono" style={{ color: cfg.color }}>
+    <div className="flex flex-col items-center">
+      <svg width="200" height="110" viewBox="0 0 200 110">
+        {/* Background arc */}
+        <path
+          d="M 15 100 A 85 85 0 0 1 185 100"
+          fill="none"
+          stroke="#e2e8f0"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+        />
+        {/* Filled arc */}
+        <path
+          d="M 15 100 A 85 85 0 0 1 185 100"
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={`${circumference}`}
+          strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 0.8s ease-out' }}
+        />
+        {/* Score text */}
+        <text x="100" y="85" textAnchor="middle" className="font-mono" style={{ fill: color, fontSize: '36px', fontWeight: 700 }}>
           {Math.round(score)}
-        </span>
-      </div>
+        </text>
+        <text x="100" y="103" textAnchor="middle" style={{ fill: '#94a3b8', fontSize: '11px' }}>
+          / 100
+        </text>
+      </svg>
+
+      {/* Badge niveau */}
+      <span
+        className="text-[11px] font-mono font-semibold tracking-[0.15em] uppercase px-3 py-1 rounded-full border -mt-1"
+        style={{
+          color: color,
+          borderColor: color + '40',
+          backgroundColor: color + '12',
+        }}
+      >
+        {level}
+      </span>
     </div>
   )
 }
 
-function ScoreBar({ label, value, color }) {
+function ScoreBar({ label, value, color, weight }) {
   return (
-    <div>
-      <div className="flex justify-between text-xs mb-1">
-        <span className="text-slate-500 font-mono">{label}</span>
-        <span className="text-slate-300 font-mono">{Math.round(value)}</span>
+    <div className="space-y-1.5">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
+          <span className="text-xs text-slate-600 font-medium">{label}</span>
+          <span className="text-[10px] text-slate-400 font-mono">×{weight}</span>
+        </div>
+        <span className="text-xs text-slate-700 font-mono font-semibold tabular-nums w-6 text-right">
+          {Math.round(value)}
+        </span>
       </div>
-      <div className="h-1.5 bg-surface-border rounded-full overflow-hidden">
+      <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
         <div
-          className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${value}%`, backgroundColor: color }}
+          className="h-full rounded-full transition-all duration-700 ease-out"
+          style={{ width: `${Math.max(value, 0)}%`, backgroundColor: color }}
         />
       </div>
     </div>
@@ -67,14 +88,17 @@ export default function RiskScoreGauge() {
   const { data, isLoading, isError } = useRiskScore()
 
   if (isLoading) return (
-    <div className="card animate-pulse">
-      <div className="h-4 w-24 bg-surface-border rounded mb-6" />
-      <div className="h-24 bg-surface-border rounded" />
+    <div className="card animate-pulse space-y-4">
+      <div className="h-3 w-20 bg-slate-200 rounded" />
+      <div className="h-24 bg-slate-100 rounded-lg" />
+      <div className="space-y-3">
+        {[...Array(3)].map((_, i) => <div key={i} className="h-6 bg-slate-200 rounded" />)}
+      </div>
     </div>
   )
 
   if (isError || !data) return (
-    <div className="card flex items-center justify-center h-48 text-slate-600 text-sm">
+    <div className="card flex items-center justify-center h-48 text-slate-400 text-sm">
       Données indisponibles
     </div>
   )
@@ -82,38 +106,35 @@ export default function RiskScoreGauge() {
   const cfg = LEVEL_CONFIG[data.level] || LEVEL_CONFIG.LOW
 
   return (
-    <div className={clsx('card border', cfg.border, cfg.bg, 'transition-all duration-500')}>
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-xs font-mono text-slate-400 uppercase tracking-widest">Risk Score</h2>
-        <span className={clsx(
-          'text-[10px] font-mono px-2 py-0.5 rounded border',
-          cfg.border,
-          'animate-pulse-slow'
-        )} style={{ color: cfg.color }}>
-          ● LIVE
+    <div className={clsx('card border transition-all duration-500 flex flex-col gap-4', cfg.border, cfg.bg)}>
+
+      {/* ── Header ─────────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Risk Score</h2>
+        <span
+          className="flex items-center gap-1.5 text-[10px] font-mono px-2 py-0.5 rounded-full border"
+          style={{ color: cfg.color, borderColor: cfg.color + '50' }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: cfg.color }} />
+          LIVE
         </span>
       </div>
 
-      <GaugeChart score={data.score} level={data.level} />
+      {/* ── Arc + Score + Badge (tout intégré dans le SVG) ── */}
+      <GaugeArc score={data.score} color={cfg.color} level={cfg.label} />
 
-      {/* Niveau */}
-      <div className="text-center mt-2 mb-4">
-        <span className="text-xs font-mono tracking-widest" style={{ color: cfg.color }}>
-          {cfg.label}
-        </span>
+      {/* ── Breakdown ──────────────────────────────────────── */}
+      <div className="space-y-3 pt-4 border-t border-slate-200">
+        <ScoreBar label="Sécurité"  value={data.security_score}    color="#ef4444" weight="0.50" />
+        <ScoreBar label="Fiabilité" value={data.reliability_score} color="#f97316" weight="0.30" />
+        <ScoreBar label="Fréquence" value={data.frequency_score}   color="#8b5cf6" weight="0.20" />
       </div>
 
-      {/* Breakdown */}
-      <div className="space-y-2.5 pt-4 border-t border-surface-border">
-        <ScoreBar label="Sécurité   ×0.50" value={data.security_score}     color="#ef4444" />
-        <ScoreBar label="Fiabilité  ×0.30" value={data.reliability_score}  color="#f97316" />
-        <ScoreBar label="Fréquence  ×0.20" value={data.frequency_score}    color="#8b5cf6" />
-      </div>
-
-      {/* Timestamp */}
-      <p className="text-[10px] text-slate-600 font-mono text-right mt-3">
+      {/* ── Timestamp ──────────────────────────────────────── */}
+      <p className="text-[10px] text-slate-400 font-mono text-right -mt-1">
         {new Date(data.computed_at).toLocaleTimeString('fr-FR')}
       </p>
+
     </div>
   )
 }

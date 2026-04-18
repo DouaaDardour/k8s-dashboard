@@ -17,14 +17,14 @@ export default function FilterBar() {
   const hasActiveFilters = namespace || pod || severity
 
   return (
-    <div className="bg-surface-card border-b border-surface-border px-6 py-3 flex items-center gap-4 flex-wrap">
+    <div className="bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-4 flex-wrap">
       {/* Namespace */}
       <div className="flex items-center gap-2">
-        <label className="text-xs text-slate-500 font-mono">ns:</label>
+        <label className="text-xs text-slate-400 font-semibold uppercase">ns</label>
         <select
           value={namespace || ''}
           onChange={e => setNamespace(e.target.value || null)}
-          className="bg-surface border border-surface-border rounded-lg px-2.5 py-1.5 text-xs text-slate-300 font-mono focus:outline-none focus:border-brand-500 min-w-28"
+          className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 font-mono focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 min-w-28"
         >
           <option value="">Tous</option>
           {namespaces.map(ns => <option key={ns} value={ns}>{ns}</option>)}
@@ -33,11 +33,11 @@ export default function FilterBar() {
 
       {/* Pod */}
       <div className="flex items-center gap-2">
-        <label className="text-xs text-slate-500 font-mono">pod:</label>
+        <label className="text-xs text-slate-400 font-semibold uppercase">pod</label>
         <select
           value={pod || ''}
           onChange={e => setPod(e.target.value || null)}
-          className="bg-surface border border-surface-border rounded-lg px-2.5 py-1.5 text-xs text-slate-300 font-mono focus:outline-none focus:border-brand-500 min-w-28"
+          className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 font-mono focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 min-w-28"
         >
           <option value="">Tous</option>
           {pods.map(p => <option key={p} value={p}>{p}</option>)}
@@ -51,13 +51,13 @@ export default function FilterBar() {
             key={sev}
             onClick={() => setSeverity(severity === sev ? null : sev)}
             className={clsx(
-              'text-[10px] font-mono px-2 py-1 rounded transition-all',
+              'text-[10px] font-semibold px-2.5 py-1 rounded-full transition-all border',
               severity === sev
-                ? sev === 'CRITICAL' ? 'bg-red-700 text-red-100'
-                  : sev === 'HIGH' ? 'bg-orange-700 text-orange-100'
-                  : sev === 'MEDIUM' ? 'bg-yellow-700 text-yellow-100'
-                  : 'bg-green-700 text-green-100'
-                : 'text-slate-500 hover:text-slate-300 border border-surface-border hover:border-slate-600'
+                ? sev === 'CRITICAL' ? 'bg-red-100 text-red-700 border-red-300'
+                  : sev === 'HIGH' ? 'bg-orange-100 text-orange-700 border-orange-300'
+                  : sev === 'MEDIUM' ? 'bg-amber-100 text-amber-700 border-amber-300'
+                  : 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                : 'text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600 bg-white'
             )}
           >
             {sev}
@@ -66,16 +66,16 @@ export default function FilterBar() {
       </div>
 
       {/* Date range */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
         {DATE_RANGES.map(r => (
           <button
             key={r.value}
             onClick={() => setDateRange(r.value)}
             className={clsx(
-              'text-xs font-mono px-2.5 py-1 rounded transition-colors',
+              'text-xs font-medium px-3 py-1 rounded-md transition-colors',
               dateRange === r.value
-                ? 'bg-brand-600/30 text-brand-400'
-                : 'text-slate-500 hover:text-slate-300'
+                ? 'bg-white text-brand-700 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
             )}
           >
             {r.label}
@@ -87,7 +87,7 @@ export default function FilterBar() {
       {hasActiveFilters && (
         <button
           onClick={resetFilters}
-          className="ml-auto text-xs text-slate-500 hover:text-red-400 transition-colors flex items-center gap-1.5"
+          className="ml-auto text-xs text-slate-400 hover:text-red-500 transition-colors flex items-center gap-1.5 font-medium"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

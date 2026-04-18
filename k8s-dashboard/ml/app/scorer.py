@@ -1,9 +1,10 @@
 """
 Service ML de scoring :
   - Isolation Forest (fiabilité comportementale)
-  - Règles OWASP compilées (SQLi, XSS)
-  - Compteur Redis (brute-force)
-  - spaCy NLP (variantes d'attaques)
+  - Règles OWASP Top 10 compilées (SQLi, XSS, SSRF, Path Traversal,
+    Command Injection, Log4Shell/JNDI, XXE)
+  - Compteur Redis (brute-force & fréquence)
+  - Déduplication par fenêtre temporelle
 """
 import re
 import numpy as np
@@ -44,6 +45,70 @@ XSS_PATTERNS = [
         r"String\.fromCharCode",
         r"&#x[0-9a-fA-F]+;",
         r"base64\s*,",
+    ]
+]
+
+# ─── SSRF (Server-Side Request Forgery) ──────────────────────
+SSRF_PATTERNS = [
+    re.compile(p, re.IGNORECASE) for p in [
+        r"https?://(127\.0\.0\.1|localhost|0\.0\.0\.0|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)",
+        r"https?://169\.254\.169\.254",             # AWS metadata endpoint
+        r"https?://metadata\.google\.internal",      # GCP metadata
+        r"file:///",
+        r"gopher://",
+        r"dict://",
+        r"\bcurl\b.+\bhttp",
+        r"\bwget\b.+\bhttp",
+    ]
+]
+
+# ─── Path Traversal / LFI ────────────────────────────────────
+PATH_TRAVERSAL_PATTERNS = [
+    re.compile(p, re.IGNORECASE) for p in [
+        r"\.\.[\\/]",                                # ../  ou ..\
+        r"(/etc/(passwd|shadow|hosts|group))",
+        r"(/proc/(self|version|cmdline))",
+        r"(/var/log/[a-z]+)",
+        r"(\\windows\\system32)",
+        r"(%2e%2e[%2f/\\])",                        # encodé URL
+        r"(%252e%252e)",                             # double encodé
+        r"(\.\./){3,}",                              # traversal profond
+    ]
+]
+
+# ─── Command Injection / OS Injection ────────────────────────
+CMD_INJECTION_PATTERNS = [
+    re.compile(p, re.IGNORECASE) for p in [
+        r"[;&|`]\s*(cat|ls|id|whoami|uname|pwd|curl|wget|nc|ncat|bash|sh|python|perl|ruby)\b",
+        r"\$\((cat|ls|id|whoami|uname)\)",           # $(command)
+        r"\bcmd\.exe\b",
+        r"\bpowershell\b",
+        r"/bin/(sh|bash|zsh|dash)",
+        r"\brm\s+(-rf|--recursive)\b",
+        r"\bchmod\b.+777",
+        r"\bnc\s+-[elp]",                             # netcat reverse shell
+        r"\bexport\b.+\bPATH=",
+    ]
+]
+
+# ─── Log4Shell / JNDI Injection ──────────────────────────────
+LOG4SHELL_PATTERNS = [
+    re.compile(p, re.IGNORECASE) for p in [
+        r"\$\{jndi:(ldap|rmi|dns|iiop)://",
+        r"\$\{(lower|upper|env|sys|java):.*\}",
+        r"\$\{.*\$\{.*\}.*\}",                       # nested lookup
+        r"%24%7Bjndi",                               # URL encoded
+    ]
+]
+
+# ─── XXE (XML External Entity) ───────────────────────────────
+XXE_PATTERNS = [
+    re.compile(p, re.IGNORECASE) for p in [
+        r"<!DOCTYPE[^>]*\[.*<!ENTITY",
+        r"<!ENTITY\s+\w+\s+SYSTEM",
+        r"SYSTEM\s+['\"]file:///",
+        r"SYSTEM\s+['\"]https?://",
+        r"<!ENTITY\s+%\s+\w+",                       # parameter entity
     ]
 ]
 
@@ -92,14 +157,56 @@ def _check_xss(message: str) -> float:
     return 0.0
 
 
-def _check_brute_force(source_ip: Optional[str], namespace: str) -> float:
+def _check_ssrf(message: str) -> float:
+    for pattern in SSRF_PATTERNS:
+        if pattern.search(message):
+            return 88.0
+    return 0.0
+
+
+def _check_path_traversal(message: str) -> float:
+    for pattern in PATH_TRAVERSAL_PATTERNS:
+        if pattern.search(message):
+            return 82.0
+    return 0.0
+
+
+def _check_cmd_injection(message: str) -> float:
+    for pattern in CMD_INJECTION_PATTERNS:
+        if pattern.search(message):
+            return 92.0
+    return 0.0
+
+
+def _check_log4shell(message: str) -> float:
+    for pattern in LOG4SHELL_PATTERNS:
+        if pattern.search(message):
+            return 95.0  # CVE critique — score maximal
+    return 0.0
+
+
+def _check_xxe(message: str) -> float:
+    for pattern in XXE_PATTERNS:
+        if pattern.search(message):
+            return 80.0
+    return 0.0
+
+
+def _check_brute_force(source_ip: Optional[str], namespace: str, message: str = "") -> float:
     if not source_ip:
+        return 0.0
+    # Ne compter que les requêtes suspectes (4xx, login failed, etc.)
+    is_suspect = bool(re.search(
+        r"(40[134]|Unauthorized|Forbidden|Failed|Invalid|login|auth|credential)",
+        message, re.IGNORECASE
+    ))
+    if not is_suspect:
         return 0.0
     key = f"bf:{namespace}:{source_ip}"
     count = _redis.incr(key)
     _redis.expire(key, 300)  # fenêtre 5 minutes
-    if count > 20:
-        return min(95.0, 60 + count * 1.5)
+    if count > 50:  # seuil relevé pour éviter les faux positifs
+        return min(95.0, 60 + count * 1.0)
     return 0.0
 
 
@@ -154,21 +261,32 @@ def compute_score(log_data: dict) -> dict:
     Calcule le Risk Score agrégé pour un log.
 
     Formule : Score = (Security × 50%) + (Reliability × 30%) + (Frequency × 20%)
+    Couverture : SQLi, XSS, SSRF, Path Traversal, Command Injection,
+                 Log4Shell, XXE, Brute-Force, Unauthorized Access
     """
     message = log_data.get("message", "")
     source_ip = log_data.get("source_ip")
     namespace = log_data.get("namespace", "default")
     raw_json = log_data.get("raw_json") or {}
 
-    # Scores par catégorie
+    # Scores par catégorie — toutes les détections OWASP Top 10
     sqli_score = _check_sqli(message)
     xss_score = _check_xss(message)
-    bf_score = _check_brute_force(source_ip, namespace)
+    ssrf_score = _check_ssrf(message)
+    path_traversal_score = _check_path_traversal(message)
+    cmd_injection_score = _check_cmd_injection(message)
+    log4shell_score = _check_log4shell(message)
+    xxe_score = _check_xxe(message)
+    bf_score = _check_brute_force(source_ip, namespace, message)
     unauth_score = _check_unauthorized(message, source_ip, namespace)
     reliability_rule_score, incident_type_from_rule = _check_k8s_reliability(message)
 
-    # Score sécurité = max des détections de sécurité
-    security_score = max(sqli_score, xss_score, bf_score, unauth_score)
+    # Score sécurité = max de toutes les détections de sécurité
+    security_score = max(
+        sqli_score, xss_score, ssrf_score, path_traversal_score,
+        cmd_injection_score, log4shell_score, xxe_score,
+        bf_score, unauth_score
+    )
 
     # Score fiabilité = max règles K8s + Isolation Forest
     if_score = _isolation_forest_score(raw_json.get("metrics", {}))
@@ -188,11 +306,21 @@ def compute_score(log_data: dict) -> dict:
     )
     final_score = round(min(100.0, max(0.0, final_score)), 1)
 
-    # Déterminer type et catégorie
-    if sqli_score > 0:
+    # Déterminer type et catégorie (priorité décroissante de criticité)
+    if log4shell_score > 0:
+        incident_type, category = "log4shell", "security"
+    elif cmd_injection_score > 0:
+        incident_type, category = "command_injection", "security"
+    elif sqli_score > 0:
         incident_type, category = "sql_injection", "security"
+    elif ssrf_score > 0:
+        incident_type, category = "ssrf", "security"
     elif xss_score > 0:
         incident_type, category = "xss", "security"
+    elif path_traversal_score > 0:
+        incident_type, category = "path_traversal", "security"
+    elif xxe_score > 0:
+        incident_type, category = "xxe", "security"
     elif bf_score > 0:
         incident_type, category = "brute_force", "security"
     elif unauth_score > 0:
@@ -214,6 +342,11 @@ def compute_score(log_data: dict) -> dict:
         "details": {
             "sqli": sqli_score,
             "xss": xss_score,
+            "ssrf": ssrf_score,
+            "path_traversal": path_traversal_score,
+            "command_injection": cmd_injection_score,
+            "log4shell": log4shell_score,
+            "xxe": xxe_score,
             "brute_force": bf_score,
             "unauthorized": unauth_score,
             "k8s_rule": reliability_rule_score,

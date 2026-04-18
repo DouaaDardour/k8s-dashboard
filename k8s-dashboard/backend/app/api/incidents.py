@@ -174,6 +174,40 @@ def cancel_incident(
     return {"status": "cancelled", "incident_id": incident_id}
 
 
+@router.post("/{incident_id}/execute-now")
+def force_execute_incident(
+    incident_id: int, db: Session = Depends(get_db), _: dict = Depends(verify_token)
+):
+    """Force l'exécution immédiate du playbook IR pour cet incident (outrepasse le timer de 120s)."""
+    incident = db.query(Incident).filter(Incident.id == incident_id).first()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident non trouvé")
+
+    # Chercher le timer actif
+    timer = db.query(IncidentTimer).filter(IncidentTimer.incident_id == incident_id).order_by(desc(IncidentTimer.id)).first()
+
+    if incident.status == IncidentStatus.AUTO_PENDING and timer:
+        from app.services.celery_app import celery_app
+        from app.services.ir_tasks import execute_playbook, IR_DISPATCH_MAP
+        
+        # 1. Révoquer la tâche en cours
+        celery_app.control.revoke(timer.celery_task_id, terminate=True)
+        timer.cancelled_at = datetime.utcnow()
+        
+        # 2. Exécuter la mitigation immédiatement pour éviter le délai
+        delay_s, mapped_playbook, _ = IR_DISPATCH_MAP.get(incident.type, (0, "block_and_alert", ""))
+        
+        # Passer en mode RECOVERY direct
+        incident.status = IncidentStatus.REMEDIATING
+        db.commit()
+
+        execute_playbook.delay(incident.id, mapped_playbook, incident.type, incident.score)
+        return {"status": "forced", "playbook": mapped_playbook, "message": "Exécution forcée de l'Incident Response déclenchée avec succès."}
+    
+    return {"status": "ignored", "message": "Aucune action en attente pour cet incident."}
+
+
+
 @router.post("/{incident_id}/resolve")
 def resolve_incident(
     incident_id: int, db: Session = Depends(get_db), _: dict = Depends(verify_token)

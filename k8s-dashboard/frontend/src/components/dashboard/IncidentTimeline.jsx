@@ -19,9 +19,9 @@ function CustomTooltip({ active, payload, label }) {
   const colors = { CRITICAL: '#ef4444', HIGH: '#f97316', MEDIUM: '#eab308', LOW: '#22c55e' }
 
   return (
-    <div className="bg-surface-card border border-surface-border rounded-lg px-3 py-2 text-xs font-mono shadow-xl">
+    <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono shadow-lg">
       <p className="text-slate-400 mb-1">{label}</p>
-      <p className="text-slate-100">{Math.round(score)} <span style={{ color: colors[level] }}>● {level}</span></p>
+      <p className="text-slate-800">{Math.round(score)} <span style={{ color: colors[level] }}>● {level}</span></p>
     </div>
   )
 }
@@ -43,7 +43,7 @@ export default function IncidentTimeline() {
   return (
     <div className="card">
       <div className="flex items-center justify-between mb-5">
-        <h2 className="text-xs font-mono text-slate-400 uppercase tracking-widest">
+        <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
           Évolution Risk Score
         </h2>
         <div className="flex items-center gap-3 text-[10px] font-mono">
@@ -54,7 +54,7 @@ export default function IncidentTimeline() {
       </div>
 
       {isLoading ? (
-        <div className="h-48 bg-surface-border/20 rounded animate-pulse" />
+        <div className="h-48 bg-slate-100 rounded animate-pulse" />
       ) : (
         <ResponsiveContainer width="100%" height={200}>
           <AreaChart data={sampled} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
@@ -64,7 +64,7 @@ export default function IncidentTimeline() {
                 <stop offset="95%" stopColor="#6366f1" stopOpacity={0.02} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e2535" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
             <XAxis
               dataKey="time"
               tick={{ fill: '#475569', fontSize: 10, fontFamily: 'IBM Plex Mono' }}

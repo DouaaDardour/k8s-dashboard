@@ -34,7 +34,7 @@ export default function IRTimer({ secondsRemaining, onExpire }) {
       {/* Arc timer SVG */}
       <div className="relative w-10 h-10 flex-shrink-0">
         <svg viewBox="0 0 40 40" className="w-full h-full -rotate-90">
-          <circle cx="20" cy="20" r="16" fill="none" stroke="#1e2535" strokeWidth="3" />
+          <circle cx="20" cy="20" r="16" fill="none" stroke="#e2e8f0" strokeWidth="3" />
           <circle
             cx="20" cy="20" r="16"
             fill="none"

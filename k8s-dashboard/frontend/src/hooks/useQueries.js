@@ -15,7 +15,8 @@ export function useRiskScore() {
 }
 
 export function useRiskHistory() {
-  const { namespace, dateRange } = useFilterStore(s => ({ namespace: s.namespace, dateRange: s.dateRange }))
+  const namespace = useFilterStore(s => s.namespace)
+  const dateRange = useFilterStore(s => s.dateRange)
   return useQuery({
     queryKey: ['risk-history', namespace, dateRange],
     queryFn: () => api.getRiskHistory(dateRange, namespace),
@@ -65,6 +66,22 @@ export function useIncidentTimer(id) {
   })
 }
 
+export function useBlockedIps() {
+  return useQuery({
+    queryKey: ['blocked-ips'],
+    queryFn: () => api.getBlockedIps(),
+    refetchInterval: 10000,
+  })
+}
+
+export function useAuditTrail() {
+  return useQuery({
+    queryKey: ['audit-trail'],
+    queryFn: () => api.getAuditTrail(),
+    refetchInterval: 10000,
+  })
+}
+
 // ─── Dashboard summary ────────────────────────────────────────
 
 export function useDashboardSummary() {
@@ -105,6 +122,7 @@ export function useCancelIncident() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['incidents'] })
       qc.invalidateQueries({ queryKey: ['dashboard-summary'] })
+      qc.invalidateQueries({ queryKey: ['incident-timer'] })
     },
   })
 }
@@ -117,5 +135,62 @@ export function useResolveIncident() {
       qc.invalidateQueries({ queryKey: ['incidents'] })
       qc.invalidateQueries({ queryKey: ['dashboard-summary'] })
     },
+  })
+}
+
+export function useForceExecuteIncident() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => api.forceExecuteIncident(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['incidents'] })
+      qc.invalidateQueries({ queryKey: ['incident-timer'] })
+      qc.invalidateQueries({ queryKey: ['dashboard-summary'] })
+      qc.invalidateQueries({ queryKey: ['blocked-ips'] })
+      qc.invalidateQueries({ queryKey: ['audit-trail'] })
+      qc.invalidateQueries({ queryKey: ['pending-incidents'] })
+    },
+  })
+}
+
+export function usePendingIncidents() {
+  return useQuery({
+    queryKey: ['pending-incidents'],
+    queryFn: () => api.getPendingIncidents(),
+    refetchInterval: 5000,
+    staleTime: 3000,
+  })
+}
+
+export function useTriggerIR() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => api.triggerIR(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pending-incidents'] })
+      qc.invalidateQueries({ queryKey: ['blocked-ips'] })
+      qc.invalidateQueries({ queryKey: ['audit-trail'] })
+      qc.invalidateQueries({ queryKey: ['incidents'] })
+      qc.invalidateQueries({ queryKey: ['dashboard-summary'] })
+    },
+  })
+}
+
+export function useUnblockIp() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ip, reason}) => api.unblockIp(ip, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['blocked-ips'] })
+      qc.invalidateQueries({ queryKey: ['audit-trail'] })
+    },
+  })
+}
+
+export function useDiagnostic() {
+  return useQuery({
+    queryKey: ['diagnostic'],
+    queryFn: () => api.getDiagnostic(),
+    staleTime: 10_000,
   })
 }
